@@ -13,12 +13,13 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class DemoPdfFromS3Pdf {
-    public void run(String bucketName, String documentName, String outputDocumentName) throws IOException, InterruptedException {
+    public URL run(String bucketName, String documentName, String outputDocumentName) throws IOException, InterruptedException {
 
         System.out.println("Generating searchable pdf from: " + bucketName + "/" + documentName);
 
@@ -49,10 +50,12 @@ public class DemoPdfFromS3Pdf {
         pdfDocument.close();
         inputDocument.close();
 
-        //Upload PDF to S3
-        UploadToS3(bucketName, outputDocumentName, "application/pdf", os.toByteArray());
+         //Upload PDF to S3
+        //UploadToS3(bucketName, outputDocumentName, "application/pdf", os.toByteArray());
+        URL presignedUrl = FileUtilities.UploadToS3(bucketName, outputDocumentName, "application/pdf", os.toByteArray(), true);
 
         System.out.println("Generated searchable pdf: " + bucketName + "/" + outputDocumentName);
+        return presignedUrl;
     }
 
     private List<ArrayList<TextLine>> extractText(String bucketName, String documentName) throws InterruptedException {
