@@ -122,6 +122,10 @@ public class PDFDocument {
         contentStream.close();
     }
 
+    public void addPage(PDPage page) {
+        this.document.addPage(page);
+    }
+
     public void save(String path) throws IOException {
         this.document.save(new File(path));
     }

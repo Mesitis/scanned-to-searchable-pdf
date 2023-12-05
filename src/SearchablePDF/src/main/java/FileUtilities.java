@@ -7,7 +7,11 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
 
+import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
@@ -17,14 +21,13 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 
 public class FileUtilities {
 
-
-    public static Path DownloadFileFromURL(URL fileUrl, Path outputFile){
-        if(outputFile == null){
+    public static Path DownloadFileFromURL(URL fileUrl, Path outputFile) {
+        if (outputFile == null) {
             Path temp = CreateTempPDFFile();
             outputFile = temp;
         }
         try (BufferedInputStream in = new BufferedInputStream(fileUrl.openStream());
-        FileOutputStream fileOutputStream = new FileOutputStream(outputFile.toString())) {
+                FileOutputStream fileOutputStream = new FileOutputStream(outputFile.toString())) {
 
             byte dataBuffer[] = new byte[1024];
             int bytesRead;
@@ -33,44 +36,57 @@ public class FileUtilities {
             }
             return outputFile;
         } catch (IOException e) {
-             System.out.println(e.getMessage());
+            System.out.println(e.getMessage());
         }
         return null;
     }
 
-    public static  String DownloadPdfFromS3(String bucketName, String documentName) throws IOException {
+    public static String DownloadPdfFromS3(String bucketName, String documentName) throws IOException {
 
         AmazonS3 s3client = AmazonS3ClientBuilder.defaultClient();
-        com.amazonaws.services.s3.model.S3Object fullObject = s3client.getObject(new GetObjectRequest(bucketName, documentName));
-        Path temp = Files.createTempFile(null,".pdf");
+        com.amazonaws.services.s3.model.S3Object fullObject = s3client
+                .getObject(new GetObjectRequest(bucketName, documentName));
+        Path temp = Files.createTempFile(null, ".pdf");
         String tempFilePath = temp.toString();
         InputStream response = fullObject.getObjectContent();
         BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(tempFilePath));
-         
+
         byte[] buffer = new byte[4096];
         int bytesRead = -1;
-         
-        while ((bytesRead = response.read(buffer)) !=  -1) {
+
+        while ((bytesRead = response.read(buffer)) != -1) {
             outputStream.write(buffer, 0, bytesRead);
         }
-                             
+
         response.close();
         outputStream.close();
         return tempFilePath;
     }
 
-    public static URL UploadToS3(String bucketName, String s3Key, String contentType, byte[] fileContent, boolean generatePresignedUrl) {
-       
+    public static URL UploadToS3(String bucketName, String s3Key, String contentType, Path filePath,
+            boolean generatePresignedUrl) throws IOException {
+        return UploadToS3(bucketName, s3Key, contentType, Files.readAllBytes(filePath), generatePresignedUrl);
+    }
+
+    public static URL UploadToS3(String bucketName, String s3Key, String contentType, byte[] fileContent,
+            boolean generatePresignedUrl) throws IOException {
+
         AmazonS3 s3client = AmazonS3ClientBuilder.defaultClient();
-        ByteArrayInputStream baInputStream = new ByteArrayInputStream(fileContent);
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentLength(fileContent.length);
         metadata.setContentType(contentType);
-        PutObjectRequest putRequest = new PutObjectRequest(bucketName, s3Key, baInputStream, metadata);
+        try (ByteArrayInputStream baInputStream = new ByteArrayInputStream(fileContent)) {
+            PutObjectRequest putRequest = new PutObjectRequest(bucketName, s3Key, baInputStream, metadata);
 
-        s3client.putObject(putRequest);
-        if(generatePresignedUrl){
-            GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucketName, s3Key);
+            s3client.putObject(putRequest);
+        }
+        if (generatePresignedUrl) {
+
+            Instant utcTimeNow = Instant.now();
+            Instant expirytime = utcTimeNow.plus(5, ChronoUnit.MINUTES);
+
+            GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucketName, s3Key, HttpMethod.GET);
+            request.setExpiration(Date.from(expirytime));
             return s3client.generatePresignedUrl(request);
         }
         return null;
@@ -84,5 +100,5 @@ public class FileUtilities {
         }
         return null;
     }
-    
+
 }

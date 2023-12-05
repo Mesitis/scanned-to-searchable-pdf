@@ -11,11 +11,13 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 public class DemoPdfFromLocalPdf {
 
-    private List<TextLine> extractText(ByteBuffer imageBytes){
+    private List<TextLine> extractText(ByteBuffer imageBytes) {
 
         AmazonTextract client = AmazonTextractClientBuilder.defaultClient();
 
@@ -42,48 +44,65 @@ public class DemoPdfFromLocalPdf {
         return lines;
     }
 
-    public void run(String documentName, String outputDocumentName) throws IOException {
+    public PdfExtractResponse run(String documentName, String outputDocumentName, Integer[] pagesToProcess)
+            throws IOException {
 
         System.out.println("Generating searchable pdf from: " + documentName);
-
-        PDFDocument pdfDocument = new PDFDocument();
 
         List<TextLine> lines = null;
         BufferedImage image = null;
         ByteArrayOutputStream byteArrayOutputStream = null;
         ByteBuffer imageBytes = null;
+        Integer totalPageCount = 0;
+        Integer processedPages = 0;
+        // Load pdf document and process each page as image
+        try (PDDocument inputDocument = PDDocument.load(new File(documentName))) {
+            PDFRenderer pdfRenderer = new PDFRenderer(inputDocument);
+            PDFDocument pdfDocument = new PDFDocument();
+            boolean allPages = (pagesToProcess == null || pagesToProcess.length == 0);
 
-        //Load pdf document and process each page as image
-        PDDocument inputDocument = PDDocument.load(new File(documentName));
-        PDFRenderer pdfRenderer = new PDFRenderer(inputDocument);
-        for (int page = 0; page < inputDocument.getNumberOfPages(); ++page) {
+            HashSet<Integer> pagesToProcessSet = null;
+            if (!allPages) {
+                pagesToProcessSet = new HashSet<Integer>(Arrays.asList(pagesToProcess));
+            }
+            totalPageCount = inputDocument.getNumberOfPages();
+            for (int page = 0; page < totalPageCount; ++page) {
+                if (allPages || pagesToProcessSet.contains(page + 1)) {
 
-            //Render image
-            image = pdfRenderer.renderImageWithDPI(page, 300, org.apache.pdfbox.rendering.ImageType.RGB);
+                    // Render image
+                    image = pdfRenderer.renderImageWithDPI(page, 300, org.apache.pdfbox.rendering.ImageType.RGB);
 
-            //Get image bytes
-            byteArrayOutputStream = new ByteArrayOutputStream();
-            ImageIOUtil.writeImage(image, "jpeg", byteArrayOutputStream);
-            byteArrayOutputStream.flush();
-            imageBytes = ByteBuffer.wrap(byteArrayOutputStream.toByteArray());
+                    // Get image bytes
+                    byteArrayOutputStream = new ByteArrayOutputStream();
+                    ImageIOUtil.writeImage(image, "jpeg", byteArrayOutputStream);
+                    byteArrayOutputStream.flush();
+                    imageBytes = ByteBuffer.wrap(byteArrayOutputStream.toByteArray());
 
-            //Extract text
-            lines = extractText(imageBytes);
+                    // Extract text
+                    lines = extractText(imageBytes);
 
-            //Add extracted text to pdf page
-            pdfDocument.addPage(image, ImageType.JPEG, lines);
+                    // Add extracted text to pdf page
+                    pdfDocument.addPage(image, ImageType.JPEG, lines);
+                    processedPages++;
+                    System.out.println("Adding page(processed) index: " + page);
+                } else {
+                    pdfDocument.addPage(inputDocument.getPage(page));
+                    System.out.println("Adding page(original) index: " + page);
+                }
 
-            System.out.println("Processed page index: " + page);
-        }
+            }
 
-        inputDocument.close();
-
-        //Save PDF to local disk
-        try (OutputStream outputStream = new FileOutputStream(outputDocumentName)) {
-            pdfDocument.save(outputStream);
-            pdfDocument.close();
+            // Save PDF to local disk
+            try (OutputStream outputStream = new FileOutputStream(outputDocumentName)) {
+                pdfDocument.save(outputStream);
+                pdfDocument.close();
+            }
         }
 
         System.out.println("Generated searchable pdf: " + outputDocumentName);
+        PdfExtractResponse response = new PdfExtractResponse();
+        response.ProcessedPageCount = processedPages;
+        response.TotalPageCount = totalPageCount;
+        return response;
     }
 }
