@@ -24,7 +24,7 @@ public class DemoPdfFromS3Pdf {
 
         // Extract text using Amazon Textract
         List<ArrayList<TextLine>> linesInPages = extractText(bucketName, documentName);
-
+        int processedPageCount = linesInPages.size();
         // Get input pdf document from Amazon S3
         InputStream inputPdf = getPdfFromS3(bucketName, documentName);
 
@@ -59,7 +59,7 @@ public class DemoPdfFromS3Pdf {
         System.out.println("Generated searchable pdf: " + bucketName + "/" + outputDocumentName);
         PdfExtractResponse result = new PdfExtractResponse();
         result.PdfUrl = presignedUrl;
-        result.ProcessedPageCount = totalPageCount;
+        result.ProcessedPageCount = processedPageCount;
         result.TotalPageCount = totalPageCount;
         return result;
     }
