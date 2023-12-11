@@ -75,6 +75,7 @@ public class FileUtilities {
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentLength(fileContent.length);
         metadata.setContentType(contentType);
+        metadata.setContentDisposition("attachment");
         try (ByteArrayInputStream baInputStream = new ByteArrayInputStream(fileContent)) {
             PutObjectRequest putRequest = new PutObjectRequest(bucketName, s3Key, baInputStream, metadata);
 
